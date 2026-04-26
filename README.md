@@ -1,143 +1,162 @@
 # SpecLens
 
-SpecLens is a local-first, evaluation-driven RAG system for synthetic engineering documents.
+### Evaluation-Driven RAG with Hybrid Retrieval and Query Routing
 
-Unlike a typical "chat with PDF" demo, SpecLens focuses on retrieval system engineering. It routes each query to keyword search, vector search, or hybrid retrieval, then evaluates retrieval quality, latency, and citation grounding on a synthetic engineering knowledge base.
+A local-first system that combines keyword search, vector retrieval, and routing, then evaluates answer quality, retrieval accuracy, latency, and cost across pipelines.
 
-## Why this project
+> Not just a RAG demo. A retrieval system you can measure, compare, and improve.
 
-Pure vector-based RAG is often unstable for exact lookup questions such as API fields, error codes, and configuration values. SpecLens combines:
+## Features
 
-- Rule-based query routing
-- BM25 keyword retrieval
-- Qdrant vector retrieval with local embeddings
-- Hybrid retrieval with Reciprocal Rank Fusion
-- Citation-grounded answer generation
-- An experiment runner for RAG evaluation
-
-## MVP features
-
-- Local-first ingestion for markdown engineering docs
-- Synthetic Northstar Commerce dataset across PRDs, specs, APIs, incidents, and release notes
-- Rule-based router for keyword, vector, or hybrid retrieval
-- BM25 keyword retrieval with `rank-bm25`
-- Vector retrieval with Qdrant and `all-MiniLM-L6-v2`
-- Hybrid retrieval with RRF
-- Ollama-backed generation with citation output
-- Fallback extractive answer mode when Ollama is unavailable
-- Evaluation metrics: route accuracy, retrieval recall, expected doc hit rate, latency, and cost
+- Query routing that selects `keyword`, `vector`, or `hybrid` retrieval
+- Hybrid search with BM25, dense retrieval, and Reciprocal Rank Fusion (RRF)
+- Citation-grounded answers backed by synthetic engineering documents
+- Evaluation pipeline for route accuracy, retrieval recall, hit rate, latency, and cost
+- Experiment runner for comparing retrieval strategies
+- Local-first stack with FastAPI, Qdrant, sentence-transformers, and Ollama
 
 ## Architecture
 
-```text
-User Query
-  -> Query Router
-  -> Keyword / Vector / Hybrid Retrieval
-  -> RRF Merge
-  -> Answer Generator
-  -> Citation Builder
-  -> Eval Pipeline
-  -> Experiment Report
+```mermaid
+flowchart LR
+    A["User Query"]
+    B["Query Router"]
+    C["Keyword Retriever<br/>BM25"]
+    D["Vector Retriever<br/>Qdrant + Embeddings"]
+    E["Hybrid Merge<br/>RRF"]
+    F["Answer Generator<br/>Ollama"]
+    G["Eval Pipeline"]
+    H["Experiment Reports"]
+
+    A --> B
+    B --> C
+    B --> D
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
 ```
 
-## Project layout
+## Demo
+
+### Question
 
 ```text
-speclens/
-  apps/api
-  rag/ingestion
-  rag/routing
-  rag/retrieval
-  rag/generation
-  rag/evaluation
-  data/docs
-  data/eval
-  reports/experiments
-  docs
+Does checkout support automatic refunds?
 ```
 
-## Quick start
+### Answer
 
-1. Clone the repository and enter it.
-2. Copy the environment file.
-3. Start Qdrant.
-4. Install Python dependencies.
-5. Start or verify Ollama locally.
-6. Build indexes and run the API.
+```text
+No. The retrieved documents conflict: the checkout PRD proposes automatic refunds,
+but the MVP payment design says automatic refunds are not supported and release 1.2
+only adds admin-triggered refunds.
+```
+
+### Sources
+
+- `checkout-redesign.md`
+- `payment-service-design.md`
+- `release-1.2.md`
+
+### Retrieval Details
+
+- Route: `hybrid`
+- Retrieved docs: `6`
+- Expected docs hit: `3/3`
+- Local Ollama latency: `5.8s` in the current test run
+
+## Evaluation
+
+SpecLens benchmarks retrieval strategies across 50 labeled questions spanning exact lookup, semantic search, multi-document reasoning, conflict resolution, and incident analysis.
+
+| Strategy | Route Accuracy | Retrieval Recall | Avg Latency |
+|----------|----------------|------------------|-------------|
+| Keyword only | 0.26 | 0.95 | 0.06ms |
+| Vector only | 0.10 | 1.00 | 90.94ms |
+| Hybrid | 0.64 | 1.00 | 32.20ms |
+| Router-based | 1.00 | 1.00 | 54.54ms |
+
+These reports are generated from the local benchmark set in [`data/eval/questions.jsonl`](data/eval/questions.jsonl) and written to [`reports/experiments`](reports/experiments).
+
+## Why This Project
+
+Most RAG demos rely purely on vector search. SpecLens is built to show a stronger systems point:
+
+- Exact API-style queries are often better handled by keyword retrieval
+- Semantic and rationale questions benefit from dense retrieval
+- Conflict-heavy engineering questions need hybrid retrieval and routing
+- Retrieval quality should be measured, not assumed
+
+## Quick Start
 
 ```bash
+git clone https://github.com/luxinyue0910/speclens
+cd speclens
+
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 cp .env.example .env
-make up
-make install
-ollama serve
-make pull-model
-make ingest
-make dev
+
+docker compose up -d
+ollama pull phi3
+
+.venv/bin/python -m rag.ingestion.build_indexes
+.venv/bin/uvicorn apps.api.main:app --reload
 ```
 
 Ask a question:
 
 ```bash
-make ask
+curl -X POST http://localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Does checkout support automatic refunds?","retriever":"auto","generator":"ollama"}'
 ```
 
 Run evaluation:
 
 ```bash
-make eval
+.venv/bin/python -m rag.evaluation.run_experiment --retriever auto --generator extractive --top-k 6
 ```
 
 ## API
 
 ### `POST /ingest`
 
-Builds chunk artifacts from `data/docs` and refreshes the Qdrant collection.
+Build indexes from `data/docs` and refresh the Qdrant collection.
 
 ### `POST /ask`
-
-Example request:
 
 ```json
 {
   "question": "Does checkout support automatic refunds?",
   "retriever": "auto",
   "top_k": 6,
-  "generator": "auto"
+  "generator": "ollama"
 }
 ```
 
 ### `POST /eval/run`
 
-Runs the experiment pipeline on `data/eval/questions.jsonl` and writes JSON and Markdown reports to `reports/experiments`.
+Run the benchmark pipeline and save JSON and Markdown reports under `reports/experiments`.
 
-## Example output
+## Dataset
 
-Question:
+SpecLens uses a synthetic engineering knowledge base for a fictional SaaS company, Northstar Commerce. The corpus includes:
 
-`Does checkout support automatic refunds?`
+- PRDs
+- technical design docs
+- API docs
+- incident postmortems
+- release notes
 
-Expected answer shape:
-
-- Explicitly call out the conflict between the PRD and implementation documents
-- Cite the PRD, payment service design, and release notes
-- Return retrieved chunks and total latency
-
-## Local-first design
-
-SpecLens can run locally on consumer hardware:
-
-- Local BM25 retrieval
-- Local embeddings
-- Local Qdrant
-- Local Ollama generation
-- Local rule-based evaluation
-
-Cloud models can be added later for improved generation quality or judge-based evaluation.
+The dataset intentionally includes conflicting evidence so retrieval strategy matters.
 
 ## Roadmap
 
-- Optional cross-encoder reranker
-- LLM-based routing
+- Heading-aware chunking for more realistic retrieval granularity
+- Optional cross-encoder reranking
 - LLM judge for faithfulness and citation accuracy
-- Next.js dashboard
-- GitHub Actions regression evals
+- Next.js dashboard for interactive experiment browsing
+- GitHub Actions eval regression checks
