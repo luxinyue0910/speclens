@@ -10,6 +10,7 @@ If the context is insufficient, say "I don't have enough evidence."
 If documents conflict, explicitly mention the conflict.
 Every key claim must cite source documents.
 Use concise engineering language.
+Write a complete answer of 2 to 4 sentences, not a one-word answer.
 Return valid JSON with keys: answer, citations, confidence.
 Each citation must include: doc, chunk_id, claim.
 """
