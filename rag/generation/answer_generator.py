@@ -6,7 +6,11 @@ from typing import Any
 import requests
 
 from rag.config import Settings
-from rag.generation.citation_builder import build_default_citations, build_extractive_answer
+from rag.generation.citation_builder import (
+    build_default_citations,
+    build_extractive_answer,
+    build_grounded_answer,
+)
 from rag.generation.prompts import SYSTEM_PROMPT, build_user_prompt
 from rag.types import RetrievedChunk
 
@@ -112,6 +116,13 @@ class AnswerGenerator:
         if confidence not in {"low", "medium", "high"}:
             confidence = str(fallback["confidence"])
 
+        answer = self._polish_answer(
+            answer=answer,
+            question=question,
+            results=results,
+            fallback_answer=str(fallback["answer"]),
+        )
+
         citations: list[dict[str, str]] = []
         for item in parsed.get("citations", []) or []:
             if not isinstance(item, dict):
@@ -140,6 +151,9 @@ class AnswerGenerator:
                     chunk_id = matching.chunk_id
 
             if not claim and chunk_id in chunk_by_id:
+                claim = build_default_citations([chunk_by_id[chunk_id]], limit=1)[0]["claim"]
+            claim = self._clean_claim(claim)
+            if chunk_id in chunk_by_id and self._should_replace_claim(claim):
                 claim = build_default_citations([chunk_by_id[chunk_id]], limit=1)[0]["claim"]
 
             if doc in known_docs and chunk_id in chunk_by_id:
@@ -194,4 +208,52 @@ class AnswerGenerator:
         if normalized_answer in {"yes", "no", "yes.", "no."}:
             return True
 
+        return False
+
+    def _polish_answer(
+        self,
+        answer: str,
+        question: str,
+        results: list[RetrievedChunk],
+        fallback_answer: str,
+    ) -> str:
+        cleaned = " ".join(answer.replace("`", "'").split()).strip()
+        cleaned = cleaned.replace(" as per the documents.", ".")
+        cleaned = cleaned.replace(" according to the documents.", ".")
+        cleaned = cleaned.replace(" as stated in the documents.", ".")
+        cleaned = cleaned.replace(" as per the document.", ".")
+        cleaned = cleaned.strip()
+
+        if self._should_prefer_grounded_style(question=question, answer=cleaned):
+            grounded = build_grounded_answer(question=question, results=results)
+            return grounded or fallback_answer
+
+        return cleaned
+
+    def _should_prefer_grounded_style(self, question: str, answer: str) -> bool:
+        normalized_question = question.lower()
+        normalized_answer = answer.lower()
+
+        if "endpoint" in normalized_question and "as per the documents" in normalized_answer:
+            return True
+        if "status code" in normalized_question and len(answer.split()) > 12:
+            return True
+        if "environment variable" in normalized_question and len(answer.split()) > 12:
+            return True
+        if "deprecated" in normalized_question and len(answer.split()) > 12:
+            return True
+        return False
+
+    def _clean_claim(self, claim: str) -> str:
+        cleaned = " ".join(claim.replace("`", "").split()).strip()
+        cleaned = cleaned.strip("'\" ")
+        return cleaned
+
+    def _should_replace_claim(self, claim: str) -> bool:
+        if not claim:
+            return True
+        if claim.count("'") % 2 == 1:
+            return True
+        if len(claim.split()) < 3:
+            return True
         return False
