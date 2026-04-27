@@ -19,6 +19,9 @@ class DocumentChunk:
     category: str
     text: str
     chunk_index: int
+    section_title: str | None = None
+    section_path: str | None = None
+    heading_level: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)

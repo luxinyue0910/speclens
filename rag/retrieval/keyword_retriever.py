@@ -39,6 +39,11 @@ def _build_bm25_index(chunks_path: str) -> BM25Okapi:
     return BM25Okapi([tokenize(chunk.text) for chunk in chunks])
 
 
+def clear_keyword_index_cache() -> None:
+    _load_chunks_from_path.cache_clear()
+    _build_bm25_index.cache_clear()
+
+
 class KeywordRetriever:
     def __init__(self, settings: Settings):
         self.settings = settings

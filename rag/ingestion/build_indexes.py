@@ -9,6 +9,7 @@ from qdrant_client.models import Distance, PointStruct, VectorParams
 from rag.config import ensure_runtime_directories, get_settings
 from rag.ingestion.chunker import chunk_documents
 from rag.ingestion.loader import load_markdown_documents
+from rag.retrieval.keyword_retriever import clear_keyword_index_cache
 from rag.resources import get_qdrant_client, get_sentence_encoder
 from rag.types import DocumentChunk
 
@@ -33,6 +34,7 @@ def build_indexes(chunk_size: int | None = None, chunk_overlap: int | None = Non
         chunk_overlap=resolved_overlap,
     )
     _write_chunks(chunks=chunks, chunks_path=settings.chunks_path)
+    clear_keyword_index_cache()
 
     encoder = get_sentence_encoder(settings.embedding_model)
     vectors = encoder.encode(
@@ -69,6 +71,7 @@ def build_indexes(chunk_size: int | None = None, chunk_overlap: int | None = Non
         "chunk_count": len(chunks),
         "chunk_size": resolved_chunk_size,
         "chunk_overlap": resolved_overlap,
+        "chunking_strategy": "heading_aware_section_window",
         "embedding_model": settings.embedding_model,
         "qdrant_collection": settings.qdrant_collection,
     }
