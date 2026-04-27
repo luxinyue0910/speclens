@@ -10,6 +10,7 @@ from rag.generation.citation_builder import (
     build_default_citations,
     build_extractive_answer,
     build_grounded_answer,
+    build_supporting_citations,
 )
 from rag.generation.prompts import SYSTEM_PROMPT, build_user_prompt
 from rag.types import RetrievedChunk
@@ -122,6 +123,25 @@ class AnswerGenerator:
             results=results,
             fallback_answer=str(fallback["answer"]),
         )
+        fallback_citations = build_supporting_citations(
+            question=question,
+            answer=answer,
+            results=results,
+            limit=3,
+        )
+        supporting_by_chunk = {
+            citation["chunk_id"]: citation for citation in fallback_citations
+        }
+        for result in results:
+            if result.chunk_id not in supporting_by_chunk:
+                supporting = build_supporting_citations(
+                    question=question,
+                    answer=answer,
+                    results=[result],
+                    limit=1,
+                )
+                if supporting:
+                    supporting_by_chunk[result.chunk_id] = supporting[0]
 
         citations: list[dict[str, str]] = []
         for item in parsed.get("citations", []) or []:
@@ -150,10 +170,10 @@ class AnswerGenerator:
                 if matching:
                     chunk_id = matching.chunk_id
 
-            if not claim and chunk_id in chunk_by_id:
-                claim = build_default_citations([chunk_by_id[chunk_id]], limit=1)[0]["claim"]
             claim = self._clean_claim(claim)
-            if chunk_id in chunk_by_id and self._should_replace_claim(claim):
+            if chunk_id in supporting_by_chunk:
+                claim = supporting_by_chunk[chunk_id]["claim"]
+            elif not claim and chunk_id in chunk_by_id:
                 claim = build_default_citations([chunk_by_id[chunk_id]], limit=1)[0]["claim"]
 
             if doc in known_docs and chunk_id in chunk_by_id:
@@ -166,7 +186,7 @@ class AnswerGenerator:
                 )
 
         if not citations:
-            citations = list(fallback["citations"])
+            citations = list(fallback_citations or fallback["citations"])
 
         deduped: list[dict[str, str]] = []
         seen: set[str] = set()
@@ -248,12 +268,3 @@ class AnswerGenerator:
         cleaned = " ".join(claim.replace("`", "").split()).strip()
         cleaned = cleaned.strip("'\" ")
         return cleaned
-
-    def _should_replace_claim(self, claim: str) -> bool:
-        if not claim:
-            return True
-        if claim.count("'") % 2 == 1:
-            return True
-        if len(claim.split()) < 3:
-            return True
-        return False

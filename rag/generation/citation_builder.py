@@ -10,6 +10,7 @@ STATUS_CODE_PATTERN = re.compile(r"\b\d{3}\s+[A-Z][A-Za-z]+\b")
 ERROR_CODE_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
 ENV_VAR_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_]{3,}\b")
 FIELD_PATTERN = re.compile(r"\b[a-z][a-z0-9_]{2,}\b")
+TOKEN_PATTERN = re.compile(r"[a-z0-9_./{}-]+")
 
 
 def build_default_citations(results: list[RetrievedChunk], limit: int = 3) -> list[dict[str, str]]:
@@ -26,6 +27,43 @@ def build_default_citations(results: list[RetrievedChunk], limit: int = 3) -> li
         if len(citations) >= limit:
             break
     return list(citations.values())
+
+
+def build_supporting_citations(
+    question: str,
+    answer: str,
+    results: list[RetrievedChunk],
+    limit: int = 3,
+) -> list[dict[str, str]]:
+    ranked: list[tuple[float, dict[str, str]]] = []
+    for result in results:
+        claim, score = _best_supporting_claim(
+            question=question,
+            answer=answer,
+            text=result.text,
+        )
+        ranked.append(
+            (
+                score,
+                {
+                    "doc": result.doc,
+                    "chunk_id": result.chunk_id,
+                    "claim": claim[:180] or "Relevant supporting evidence.",
+                },
+            )
+        )
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    citations: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for _, citation in ranked:
+        if citation["chunk_id"] in seen:
+            continue
+        seen.add(citation["chunk_id"])
+        citations.append(citation)
+        if len(citations) >= limit:
+            break
+    return citations
 
 
 def build_extractive_answer(question: str, results: list[RetrievedChunk]) -> dict[str, object]:
@@ -169,6 +207,48 @@ def _best_matching_sentence(question: str, text: str) -> str:
     return text[:220].strip()
 
 
+def _best_supporting_claim(question: str, answer: str, text: str) -> tuple[str, float]:
+    candidates = _candidate_claim_fragments(text)
+    if not candidates:
+        cleaned = _clean_sentence(text[:220])
+        return cleaned, 0.0
+
+    question_terms = _term_set(question)
+    answer_terms = _term_set(answer)
+    anchor_terms = _anchor_terms(question, answer)
+
+    scored: list[tuple[float, str]] = []
+    for candidate in candidates:
+        normalized = candidate.lower()
+        candidate_terms = _term_set(candidate)
+        score = 0.0
+        score += 4.0 * len(candidate_terms & answer_terms)
+        score += 2.0 * len(candidate_terms & question_terms)
+        score += 8.0 * sum(1 for anchor in anchor_terms if anchor.lower() in normalized)
+
+        if "deprecated" in question.lower() and "deprecated" in normalized:
+            score += 2.0
+        if "endpoint" in question.lower() and ENDPOINT_PATTERN.search(candidate):
+            score += 3.0
+        if "status code" in question.lower() and STATUS_CODE_PATTERN.search(candidate):
+            score += 3.0
+        if "error code" in question.lower() and ERROR_CODE_PATTERN.search(candidate):
+            score += 3.0
+        if "environment variable" in question.lower() and ENV_VAR_PATTERN.search(candidate):
+            score += 3.0
+
+        if len(candidate.split()) > 28:
+            score -= 1.0
+        if candidate.startswith("#"):
+            score -= 5.0
+
+        scored.append((score, candidate))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    best_score, best_candidate = scored[0]
+    return _clean_sentence(best_candidate), best_score
+
+
 def _extract_first_match(pattern: re.Pattern[str], text: str) -> str | None:
     match = pattern.search(text)
     return match.group(0).strip() if match else None
@@ -208,9 +288,50 @@ def _first_claim_sentence(text: str) -> str:
 def _clean_sentence(text: str) -> str:
     cleaned = text.replace("`", "").replace("*", "")
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(r"^[#\-.:\s]+", "", cleaned)
     cleaned = cleaned.strip("'\" ")
     return cleaned
 
 
 def joined_text(results: list[RetrievedChunk]) -> str:
     return " ".join(result.text.lower() for result in results)
+
+
+def _candidate_claim_fragments(text: str) -> list[str]:
+    normalized = text.replace(" ## ", ". ").replace(" ### ", ". ").replace(" - ", ". ")
+    normalized = normalized.replace("# ", ". ")
+    parts = re.split(r"(?<=[.!?])\s+|\s+\.\s+", normalized)
+    candidates: list[str] = []
+    for part in parts:
+        cleaned = _clean_sentence(part)
+        if not cleaned:
+            continue
+        if len(cleaned.split()) < 3:
+            continue
+        candidates.append(cleaned)
+    return candidates
+
+
+def _term_set(text: str) -> set[str]:
+    return {
+        token
+        for token in TOKEN_PATTERN.findall(text.lower())
+        if len(token) > 2
+    }
+
+
+def _anchor_terms(question: str, answer: str) -> list[str]:
+    anchors: list[str] = []
+    for pattern in (
+        ENDPOINT_PATTERN,
+        STATUS_CODE_PATTERN,
+        ERROR_CODE_PATTERN,
+        ENV_VAR_PATTERN,
+    ):
+        anchors.extend(pattern.findall(question))
+        anchors.extend(pattern.findall(answer))
+
+    if not anchors:
+        anchors.extend(token for token in FIELD_PATTERN.findall(question) if "_" in token)
+        anchors.extend(token for token in FIELD_PATTERN.findall(answer) if "_" in token)
+    return anchors
