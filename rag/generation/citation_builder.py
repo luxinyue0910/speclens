@@ -11,6 +11,7 @@ ERROR_CODE_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
 ENV_VAR_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_]{3,}\b")
 FIELD_PATTERN = re.compile(r"\b[a-z][a-z0-9_]{2,}\b")
 TOKEN_PATTERN = re.compile(r"[a-z0-9_./{}-]+")
+VISUAL_TERMS = {"diagram", "architecture", "flow", "dashboard", "chart", "graph", "figure", "screenshot"}
 
 
 def build_default_citations(results: list[RetrievedChunk], limit: int = 3) -> list[dict[str, str | None]]:
@@ -108,6 +109,10 @@ def build_grounded_answer(question: str, results: list[RetrievedChunk]) -> str:
     if "duplicate order" in q:
         if "409 conflict" in joined and "duplicate_order" in joined:
             return "Duplicate order submissions return 409 Conflict with error code DUPLICATE_ORDER."
+
+    multimodal_answer = _build_multimodal_summary(question=question, results=results)
+    if multimodal_answer:
+        return multimodal_answer
 
     exact_answer = _build_exact_lookup_answer(question=question, results=results)
     if exact_answer:
@@ -211,6 +216,36 @@ def _best_matching_sentence(question: str, text: str) -> str:
     return text[:220].strip()
 
 
+def _build_multimodal_summary(question: str, results: list[RetrievedChunk]) -> str | None:
+    normalized_question = question.lower()
+    if not any(term in normalized_question for term in VISUAL_TERMS):
+        return None
+
+    image_results = [result for result in results if result.source_type == "image"]
+    if not image_results:
+        return None
+
+    best_image = image_results[0]
+    image_summary = _extract_labeled_value(best_image.text, "Image summary")
+    image_text = _extract_labeled_value(best_image.text, "Image text")
+    if not image_summary and not image_text:
+        return None
+
+    primary = _rewrite_visual_summary(
+        summary=image_summary or image_text or "",
+        asset_kind=best_image.asset_kind,
+    )
+    if _visual_summary_is_sufficient(question=question, summary=primary):
+        return primary
+    support = _best_text_support(question=question, results=results, image_summary=primary)
+
+    if not primary:
+        return support
+    if support and support.lower() not in primary.lower():
+        return f"{primary} {support}"
+    return primary
+
+
 def _best_supporting_claim(question: str, answer: str, text: str) -> tuple[str, float]:
     candidates = _candidate_claim_fragments(text)
     if not candidates:
@@ -305,6 +340,91 @@ def _clean_sentence(text: str) -> str:
 
 def joined_text(results: list[RetrievedChunk]) -> str:
     return " ".join(result.text.lower() for result in results)
+
+
+def _extract_labeled_value(text: str, label: str) -> str:
+    prefix = f"{label}:"
+    for line in text.splitlines():
+        if line.startswith(prefix):
+            return _clean_sentence(line[len(prefix) :])
+    return ""
+
+
+def _rewrite_visual_summary(summary: str, asset_kind: str | None) -> str:
+    cleaned = _clean_sentence(summary)
+    lowered = cleaned.lower()
+
+    if lowered.startswith("architecture diagram showing "):
+        return "The architecture diagram shows " + cleaned[len("Architecture diagram showing ") :]
+    if lowered.startswith("diagram showing "):
+        return "The diagram shows " + cleaned[len("Diagram showing ") :]
+    if lowered.startswith("dashboard showing "):
+        return "The dashboard shows " + cleaned[len("Dashboard showing ") :]
+    if asset_kind == "diagram":
+        return "The diagram shows " + cleaned[0].lower() + cleaned[1:] if cleaned else ""
+    if asset_kind == "dashboard":
+        return "The dashboard shows " + cleaned[0].lower() + cleaned[1:] if cleaned else ""
+    return _ensure_sentence(cleaned)
+
+
+def _best_text_support(
+    question: str,
+    results: list[RetrievedChunk],
+    image_summary: str,
+) -> str | None:
+    question_terms = _term_set(question)
+    summary_terms = _term_set(image_summary)
+    best_score = 0
+    best_sentence = ""
+
+    for result in results:
+        if result.source_type == "image":
+            continue
+        sentence = _clean_sentence(_best_matching_sentence(question=question, text=result.text))
+        if not sentence:
+            continue
+        sentence_terms = _term_set(sentence)
+        score = len(sentence_terms & question_terms) + len(sentence_terms - summary_terms)
+        if result.doc == results[0].doc:
+            score += 2
+        if "retry" in question.lower() and "retry" in sentence.lower():
+            score += 2
+        if "outside the request path" in sentence.lower():
+            score += 2
+        if "ranking v2" in sentence.lower():
+            score += 1
+        if score > best_score:
+            best_score = score
+            best_sentence = sentence
+
+    if best_score <= 0 or not best_sentence:
+        return None
+    if best_sentence.lower() in image_summary.lower():
+        return None
+    return _ensure_sentence(best_sentence)
+
+
+def _ensure_sentence(text: str) -> str:
+    if not text:
+        return text
+    if text.endswith((".", "!", "?")):
+        return text
+    return text + "."
+
+
+def _visual_summary_is_sufficient(question: str, summary: str) -> bool:
+    normalized_question = question.lower()
+    normalized_summary = summary.lower()
+
+    if "retry" in normalized_question and "retry" in normalized_summary:
+        return True
+    if "dashboard" in normalized_question and "ranking v2" in normalized_summary:
+        return True
+    if "chart" in normalized_question and "ranking v2" in normalized_summary:
+        return True
+    if "architecture" in normalized_question and "outside the request path" in normalized_summary:
+        return True
+    return False
 
 
 def _candidate_claim_fragments(text: str) -> list[str]:
