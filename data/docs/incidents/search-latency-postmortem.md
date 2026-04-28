@@ -4,6 +4,8 @@
 
 After Search Ranking v2 was enabled for 100 percent of traffic, p95 search latency increased from 420 ms to 910 ms.
 
+![Dashboard showing p95 latency before and after the Ranking v2 rollout](../../assets/dashboards/search-latency-p95.svg)
+
 ## Root causes
 
 - The candidate set increased from 100 to 400 items before ranking.

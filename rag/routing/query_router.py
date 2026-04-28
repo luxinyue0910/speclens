@@ -28,6 +28,14 @@ REASONING_TERMS = {
     "how did",
     "explain",
     "respond",
+    "diagram",
+    "chart",
+    "screenshot",
+    "figure",
+    "table",
+    "graph",
+    "flow",
+    "architecture",
 }
 
 CONFLICT_TERMS = {

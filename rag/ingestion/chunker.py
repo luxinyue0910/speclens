@@ -9,6 +9,7 @@ from rag.types import DocumentChunk, LoadedDocument
 
 HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 WHITESPACE_PATTERN = re.compile(r"\s+")
+IMAGE_PATTERN = re.compile(r"!\[[^\]]*\]\([^)]+\)")
 
 
 @dataclass(slots=True)
@@ -43,7 +44,7 @@ def chunk_document(
     chunk_index = 0
 
     for section in sections:
-        body_words = _tokenize_words(section.content)
+        body_words = _tokenize_words(_strip_image_markup(section.content))
         if not body_words:
             continue
 
@@ -162,3 +163,7 @@ def _tokenize_words(text: str) -> list[str]:
     if not normalized:
         return []
     return [word for word in WHITESPACE_PATTERN.split(normalized) if word]
+
+
+def _strip_image_markup(text: str) -> str:
+    return IMAGE_PATTERN.sub("", text)

@@ -70,6 +70,9 @@ class KeywordRetriever:
                     score=float(score),
                     category=chunk.category,
                     path=chunk.path,
+                    source_type=chunk.source_type,
+                    asset_path=chunk.asset_path,
+                    asset_kind=chunk.asset_kind,
                 )
             )
         return results

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="380" viewBox="0 0 920 380" role="img" aria-label="Notification architecture diagram">
+  <rect width="920" height="380" fill="#f6f5ef" />
+  <rect x="60" y="130" width="170" height="90" rx="14" fill="#184e77" />
+  <rect x="360" y="130" width="170" height="90" rx="14" fill="#1f7a8c" />
+  <rect x="660" y="70" width="170" height="90" rx="14" fill="#76c893" />
+  <rect x="660" y="210" width="170" height="90" rx="14" fill="#99d98c" />
+  <text x="145" y="168" text-anchor="middle" font-size="24" font-family="Helvetica, Arial, sans-serif" fill="#ffffff">Checkout API</text>
+  <text x="145" y="196" text-anchor="middle" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#d9ed92">publishes notification jobs</text>
+  <text x="445" y="168" text-anchor="middle" font-size="24" font-family="Helvetica, Arial, sans-serif" fill="#ffffff">Notification Queue</text>
+  <text x="445" y="196" text-anchor="middle" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#d9ed92">request path ends here</text>
+  <text x="745" y="108" text-anchor="middle" font-size="24" font-family="Helvetica, Arial, sans-serif" fill="#143601">Async Workers</text>
+  <text x="745" y="136" text-anchor="middle" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#143601">retries up to 5 times</text>
+  <text x="745" y="248" text-anchor="middle" font-size="24" font-family="Helvetica, Arial, sans-serif" fill="#143601">Dead Letter Topic</text>
+  <text x="745" y="276" text-anchor="middle" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#143601">stores permanently failed jobs</text>
+  <path d="M230 175 L360 175" stroke="#0b3c49" stroke-width="6" fill="none" />
+  <polygon points="360,175 344,167 344,183" fill="#0b3c49" />
+  <path d="M530 175 L660 120" stroke="#0b3c49" stroke-width="6" fill="none" />
+  <polygon points="660,120 645,115 651,130" fill="#0b3c49" />
+  <path d="M745 160 L745 210" stroke="#0b3c49" stroke-width="6" fill="none" />
+  <polygon points="745,210 737,194 753,194" fill="#0b3c49" />
+  <text x="582" y="86" text-anchor="middle" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#0b3c49">async dispatch</text>
+  <text x="785" y="188" text-anchor="middle" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#0b3c49">failed after max retries</text>
+</svg>

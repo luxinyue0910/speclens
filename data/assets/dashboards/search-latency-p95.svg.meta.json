@@ -1,0 +1,5 @@
+{
+  "kind": "dashboard",
+  "caption": "Dashboard showing search p95 latency remaining near 420 ms before the Ranking v2 rollout and then rising to roughly 910 ms afterward.",
+  "ocr_text": "Search p95 Latency. Ranking v2 rollout. p95 latency stays around 420 ms. p95 latency rises to 910 ms."
+}

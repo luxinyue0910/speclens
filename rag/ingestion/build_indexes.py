@@ -8,6 +8,7 @@ from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from rag.config import ensure_runtime_directories, get_settings
 from rag.ingestion.chunker import chunk_documents
+from rag.ingestion.image_assets import build_image_chunks
 from rag.ingestion.loader import load_markdown_documents
 from rag.retrieval.keyword_retriever import clear_keyword_index_cache
 from rag.resources import get_qdrant_client, get_sentence_encoder
@@ -28,11 +29,16 @@ def build_indexes(chunk_size: int | None = None, chunk_overlap: int | None = Non
     resolved_overlap = chunk_overlap if chunk_overlap is not None else settings.default_chunk_overlap
 
     documents = load_markdown_documents(settings.docs_dir)
-    chunks = chunk_documents(
+    text_chunks = chunk_documents(
         documents=documents,
         chunk_size=resolved_chunk_size,
         chunk_overlap=resolved_overlap,
     )
+    image_chunks = build_image_chunks(
+        documents=documents,
+        root_dir=settings.root_dir,
+    )
+    chunks = text_chunks + image_chunks
     _write_chunks(chunks=chunks, chunks_path=settings.chunks_path)
     clear_keyword_index_cache()
 
@@ -69,6 +75,8 @@ def build_indexes(chunk_size: int | None = None, chunk_overlap: int | None = Non
         "built_at": datetime.now(UTC).isoformat(),
         "document_count": len(documents),
         "chunk_count": len(chunks),
+        "text_chunk_count": len(text_chunks),
+        "image_chunk_count": len(image_chunks),
         "chunk_size": resolved_chunk_size,
         "chunk_overlap": resolved_overlap,
         "chunking_strategy": "heading_aware_section_window",

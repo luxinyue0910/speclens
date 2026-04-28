@@ -25,6 +25,9 @@ class VectorRetriever:
                     score=float(point.score),
                     category=str(payload["category"]),
                     path=str(payload["path"]),
+                    source_type=str(payload.get("source_type", "text")),
+                    asset_path=str(payload["asset_path"]) if payload.get("asset_path") else None,
+                    asset_kind=str(payload["asset_kind"]) if payload.get("asset_kind") else None,
                 )
             )
         return results

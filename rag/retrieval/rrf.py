@@ -24,6 +24,9 @@ def reciprocal_rank_fusion(
             score=fused_scores[item.chunk_id],
             category=item.category,
             path=item.path,
+            source_type=item.source_type,
+            asset_path=item.asset_path,
+            asset_kind=item.asset_kind,
         )
         for item in by_id.values()
     ]

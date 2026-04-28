@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="420" viewBox="0 0 920 420" role="img" aria-label="Search latency dashboard">
+  <rect width="920" height="420" fill="#f7f7fb" />
+  <text x="60" y="48" font-size="28" font-family="Helvetica, Arial, sans-serif" fill="#1f2937">Search p95 Latency</text>
+  <text x="60" y="78" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#4b5563">Ranking v2 rollout correlates with a jump from 420 ms to 910 ms.</text>
+  <line x1="90" y1="340" x2="840" y2="340" stroke="#cbd5e1" stroke-width="2" />
+  <line x1="90" y1="120" x2="90" y2="340" stroke="#cbd5e1" stroke-width="2" />
+  <text x="52" y="340" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">0</text>
+  <text x="32" y="270" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">300</text>
+  <text x="32" y="200" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">600</text>
+  <text x="32" y="130" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">900</text>
+  <polyline points="110,250 220,246 330,244 440,242 550,238 660,156 770,128 830,126" fill="none" stroke="#2563eb" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <line x1="620" y1="100" x2="620" y2="340" stroke="#ef4444" stroke-width="3" stroke-dasharray="10 8" />
+  <text x="636" y="118" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#b91c1c">Ranking v2 rollout</text>
+  <text x="126" y="372" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">11:00</text>
+  <text x="296" y="372" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">11:20</text>
+  <text x="466" y="372" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">11:40</text>
+  <text x="636" y="372" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">12:00</text>
+  <text x="806" y="372" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#475569">12:20</text>
+  <text x="140" y="230" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e3a8a">p95 latency stays around 420 ms</text>
+  <text x="690" y="168" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e3a8a">p95 latency rises to 910 ms</text>
+</svg>

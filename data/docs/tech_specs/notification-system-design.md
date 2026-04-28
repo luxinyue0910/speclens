@@ -6,6 +6,8 @@ The notification platform delivers order, payment, and shipment events to intern
 
 ## Architecture
 
+![Async notification architecture showing queue-based retries](../../assets/diagrams/notification-architecture.svg)
+
 - Event producers write notification jobs to a queue
 - Workers process jobs asynchronously
 - Retries are handled outside the request path

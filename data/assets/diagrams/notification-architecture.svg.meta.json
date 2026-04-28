@@ -1,0 +1,5 @@
+{
+  "kind": "diagram",
+  "caption": "Architecture diagram showing checkout publishing notification jobs to a queue. Async workers handle delivery retries outside the request path and send permanently failed jobs to the dead letter topic.",
+  "ocr_text": "Checkout API publishes notification jobs. Notification Queue request path ends here. Async Workers retries up to 5 times. Dead Letter Topic stores permanently failed jobs."
+}

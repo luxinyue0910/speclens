@@ -1,4 +1,5 @@
 from typing import Literal
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -18,6 +19,8 @@ class CitationResponse(BaseModel):
     doc: str
     chunk_id: str
     claim: str
+    source_type: Optional[str] = None
+    asset_path: Optional[str] = None
 
 
 class RetrievedChunkResponse(BaseModel):
@@ -25,6 +28,8 @@ class RetrievedChunkResponse(BaseModel):
     chunk_id: str
     score: float
     text: str
+    source_type: Optional[str] = None
+    asset_path: Optional[str] = None
 
 
 class AskResponse(BaseModel):

@@ -27,6 +27,8 @@ ANSWER_SCHEMA = {
                     "doc": {"type": "string"},
                     "chunk_id": {"type": "string"},
                     "claim": {"type": "string"},
+                    "source_type": {"type": "string"},
+                    "asset_path": {"type": "string"},
                 },
                 "required": ["doc", "chunk_id", "claim"],
             },
@@ -143,7 +145,7 @@ class AnswerGenerator:
                 if supporting:
                     supporting_by_chunk[result.chunk_id] = supporting[0]
 
-        citations: list[dict[str, str]] = []
+        citations: list[dict[str, str | None]] = []
         for item in parsed.get("citations", []) or []:
             if not isinstance(item, dict):
                 continue
@@ -177,18 +179,21 @@ class AnswerGenerator:
                 claim = build_default_citations([chunk_by_id[chunk_id]], limit=1)[0]["claim"]
 
             if doc in known_docs and chunk_id in chunk_by_id:
+                source_chunk = chunk_by_id[chunk_id]
                 citations.append(
                     {
                         "doc": doc,
                         "chunk_id": chunk_id,
                         "claim": claim or "Relevant supporting evidence.",
+                        "source_type": source_chunk.source_type,
+                        "asset_path": source_chunk.asset_path,
                     }
                 )
 
         if not citations:
             citations = list(fallback_citations or fallback["citations"])
 
-        deduped: list[dict[str, str]] = []
+        deduped: list[dict[str, str | None]] = []
         seen: set[str] = set()
         for citation in citations:
             key = citation["chunk_id"]

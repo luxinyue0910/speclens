@@ -13,8 +13,8 @@ FIELD_PATTERN = re.compile(r"\b[a-z][a-z0-9_]{2,}\b")
 TOKEN_PATTERN = re.compile(r"[a-z0-9_./{}-]+")
 
 
-def build_default_citations(results: list[RetrievedChunk], limit: int = 3) -> list[dict[str, str]]:
-    citations: "OrderedDict[str, dict[str, str]]" = OrderedDict()
+def build_default_citations(results: list[RetrievedChunk], limit: int = 3) -> list[dict[str, str | None]]:
+    citations: "OrderedDict[str, dict[str, str | None]]" = OrderedDict()
     for result in results:
         if result.chunk_id in citations:
             continue
@@ -23,6 +23,8 @@ def build_default_citations(results: list[RetrievedChunk], limit: int = 3) -> li
             "doc": result.doc,
             "chunk_id": result.chunk_id,
             "claim": snippet[:180] or "Relevant supporting evidence.",
+            "source_type": result.source_type,
+            "asset_path": result.asset_path,
         }
         if len(citations) >= limit:
             break
@@ -34,8 +36,8 @@ def build_supporting_citations(
     answer: str,
     results: list[RetrievedChunk],
     limit: int = 3,
-) -> list[dict[str, str]]:
-    ranked: list[tuple[float, dict[str, str]]] = []
+) -> list[dict[str, str | None]]:
+    ranked: list[tuple[float, dict[str, str | None]]] = []
     for result in results:
         claim, score = _best_supporting_claim(
             question=question,
@@ -49,12 +51,14 @@ def build_supporting_citations(
                     "doc": result.doc,
                     "chunk_id": result.chunk_id,
                     "claim": claim[:180] or "Relevant supporting evidence.",
+                    "source_type": result.source_type,
+                    "asset_path": result.asset_path,
                 },
             )
         )
 
     ranked.sort(key=lambda item: item[0], reverse=True)
-    citations: list[dict[str, str]] = []
+    citations: list[dict[str, str | None]] = []
     seen: set[str] = set()
     for _, citation in ranked:
         if citation["chunk_id"] in seen:
@@ -289,6 +293,12 @@ def _clean_sentence(text: str) -> str:
     cleaned = text.replace("`", "").replace("*", "")
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     cleaned = re.sub(r"^[#\-.:\s]+", "", cleaned)
+    cleaned = re.sub(
+        r"^(Image summary|Image text|Alt text|Section|Image asset):\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
     cleaned = cleaned.strip("'\" ")
     return cleaned
 
