@@ -36,7 +36,7 @@ def build_indexes(chunk_size: int | None = None, chunk_overlap: int | None = Non
     )
     image_chunks = build_image_chunks(
         documents=documents,
-        root_dir=settings.root_dir,
+        settings=settings,
     )
     chunks = text_chunks + image_chunks
     _write_chunks(chunks=chunks, chunks_path=settings.chunks_path)

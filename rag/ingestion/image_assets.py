@@ -5,7 +5,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from rag.config import Settings
 from rag.ingestion.metadata import build_image_chunk_id
+from rag.ingestion.ocr import extract_image_text
+from rag.ingestion.vision_summary import generate_image_summary
 from rag.types import DocumentChunk, LoadedDocument
 
 
@@ -22,15 +25,15 @@ class ImageAssetMetadata:
 
 def build_image_chunks(
     documents: list[LoadedDocument],
-    root_dir: Path,
+    settings: Settings,
 ) -> list[DocumentChunk]:
-    resolved_root_dir = root_dir.resolve()
+    resolved_root_dir = settings.root_dir.resolve()
     chunks: list[DocumentChunk] = []
 
     for document in documents:
         heading_stack: list[tuple[int, str]] = []
         image_index = 0
-        doc_path = root_dir / document.path
+        doc_path = settings.root_dir / document.path
 
         for line in document.text.splitlines():
             heading_match = HEADING_PATTERN.match(line.strip())
@@ -49,7 +52,10 @@ def build_image_chunks(
             raw_asset_path = image_match.group("path").strip()
             alt_text = image_match.group("alt").strip()
             resolved_asset_path = _resolve_asset_path(doc_path=doc_path, raw_asset_path=raw_asset_path)
-            metadata = _load_asset_metadata(resolved_asset_path)
+            sidecar = _load_asset_metadata(resolved_asset_path)
+            ocr = extract_image_text(resolved_asset_path, settings=settings)
+            vision = generate_image_summary(resolved_asset_path, settings=settings)
+            metadata = _merge_asset_metadata(sidecar=sidecar, ocr_text=ocr.text, vision_summary=vision.summary)
             relative_asset_path = str(resolved_asset_path.relative_to(resolved_root_dir))
             section_path = " > ".join(title for _, title in heading_stack) or None
             section_title = heading_stack[-1][1] if heading_stack else None
@@ -60,6 +66,8 @@ def build_image_chunks(
                 alt_text=alt_text,
                 asset_path=relative_asset_path,
                 metadata=metadata,
+                ocr_engine=ocr.engine,
+                vision_engine=vision.engine,
             )
             chunks.append(
                 DocumentChunk(
@@ -102,11 +110,25 @@ def _load_asset_metadata(asset_path: Path) -> ImageAssetMetadata:
     return ImageAssetMetadata(kind=asset_path.suffix.lstrip(".") or "image")
 
 
+def _merge_asset_metadata(
+    sidecar: ImageAssetMetadata,
+    ocr_text: str,
+    vision_summary: str,
+) -> ImageAssetMetadata:
+    return ImageAssetMetadata(
+        caption=sidecar.caption or vision_summary,
+        ocr_text=sidecar.ocr_text or ocr_text,
+        kind=sidecar.kind,
+    )
+
+
 def _build_image_chunk_text(
     section_path: str | None,
     alt_text: str,
     asset_path: str,
     metadata: ImageAssetMetadata,
+    ocr_engine: str,
+    vision_engine: str,
 ) -> str:
     lines = []
     if metadata.caption:
@@ -118,6 +140,10 @@ def _build_image_chunk_text(
     if section_path:
         lines.append(_ensure_period(f"Section: {section_path}"))
     lines.append(_ensure_period(f"Image asset: {asset_path}"))
+    if vision_engine and vision_engine != "none":
+        lines.append(_ensure_period(f"Vision engine: {vision_engine}"))
+    if ocr_engine and ocr_engine != "none":
+        lines.append(_ensure_period(f"OCR engine: {ocr_engine}"))
     return "\n".join(lines)
 
 
