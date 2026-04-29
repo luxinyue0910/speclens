@@ -68,6 +68,12 @@ class EvalRunResponse(BaseModel):
     route_accuracy: float
     retrieval_recall: float
     expected_doc_hit_rate: float
+    multimodal_question_count: int
+    cross_modal_question_count: int
+    image_retrieval_recall: float
+    image_hit_rate: float
+    image_citation_hit_rate: float
+    cross_modal_coverage: float
     avg_latency_ms: float
     cost_per_query_usd: float
     report_json: str

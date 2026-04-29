@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from rag.config import Settings, get_settings
 from rag.evaluation.metrics import (
     compute_expected_doc_hit_rate,
+    compute_cross_modal_coverage,
     compute_retrieval_recall,
+    compute_source_hit_rate,
+    compute_source_recall,
+    has_cross_modal_expectation,
+    has_image_expectation,
 )
 from rag.evaluation.report_generator import write_report_files
 from rag.pipeline import RagPipeline
@@ -47,6 +52,25 @@ def run_experiment(config: ExperimentConfig, settings: Settings | None = None) -
             generator=config.generator,
         )
         retrieved_docs = [chunk["doc"] for chunk in result["retrieved_chunks"]]
+        retrieved_sources = [
+            {
+                "doc": chunk["doc"],
+                "chunk_id": chunk["chunk_id"],
+                "source_type": chunk.get("source_type", "text"),
+                "asset_path": chunk.get("asset_path"),
+            }
+            for chunk in result["retrieved_chunks"]
+        ]
+        cited_sources = [
+            {
+                "doc": citation["doc"],
+                "chunk_id": citation["chunk_id"],
+                "source_type": citation.get("source_type", "text"),
+                "asset_path": citation.get("asset_path"),
+            }
+            for citation in result["citations"]
+        ]
+        expected_sources = list(item.get("expected_sources", []))
         recall = compute_retrieval_recall(
             expected_docs=list(item["expected_docs"]),
             retrieved_docs=retrieved_docs,
@@ -54,6 +78,25 @@ def run_experiment(config: ExperimentConfig, settings: Settings | None = None) -
         hit_rate = compute_expected_doc_hit_rate(
             expected_docs=list(item["expected_docs"]),
             retrieved_docs=retrieved_docs,
+        )
+        image_recall = compute_source_recall(
+            expected_sources=expected_sources,
+            actual_sources=retrieved_sources,
+            source_type="image",
+        )
+        image_hit = compute_source_hit_rate(
+            expected_sources=expected_sources,
+            actual_sources=retrieved_sources,
+            source_type="image",
+        )
+        image_citation_hit = compute_source_hit_rate(
+            expected_sources=expected_sources,
+            actual_sources=cited_sources,
+            source_type="image",
+        )
+        cross_modal_coverage = compute_cross_modal_coverage(
+            expected_sources=expected_sources,
+            actual_sources=retrieved_sources,
         )
         rows.append(
             {
@@ -64,7 +107,15 @@ def run_experiment(config: ExperimentConfig, settings: Settings | None = None) -
                 "route_correct": result["route"] == item["expected_route"],
                 "retrieval_recall": recall,
                 "expected_doc_hit": hit_rate,
+                "has_image_expectation": has_image_expectation(expected_sources),
+                "has_cross_modal_expectation": has_cross_modal_expectation(expected_sources),
+                "image_retrieval_recall": image_recall,
+                "image_hit": image_hit,
+                "image_citation_hit": image_citation_hit,
+                "cross_modal_coverage": cross_modal_coverage,
                 "latency_ms": result["latency_ms"],
+                "retrieved_sources": retrieved_sources,
+                "cited_sources": cited_sources,
             }
         )
 
@@ -73,6 +124,28 @@ def run_experiment(config: ExperimentConfig, settings: Settings | None = None) -
     retrieval_recall = sum(row["retrieval_recall"] for row in rows) / question_count
     expected_doc_hit_rate = sum(row["expected_doc_hit"] for row in rows) / question_count
     avg_latency_ms = sum(row["latency_ms"] for row in rows) / question_count
+    multimodal_question_count = sum(1 for row in rows if row["has_image_expectation"])
+    cross_modal_question_count = sum(1 for row in rows if row["has_cross_modal_expectation"])
+    image_retrieval_recall = _average_metric(
+        rows=rows,
+        metric_key="image_retrieval_recall",
+        filter_key="has_image_expectation",
+    )
+    image_hit_rate = _average_metric(
+        rows=rows,
+        metric_key="image_hit",
+        filter_key="has_image_expectation",
+    )
+    image_citation_hit_rate = _average_metric(
+        rows=rows,
+        metric_key="image_citation_hit",
+        filter_key="has_image_expectation",
+    )
+    cross_modal_coverage = _average_metric(
+        rows=rows,
+        metric_key="cross_modal_coverage",
+        filter_key="has_cross_modal_expectation",
+    )
 
     experiment_name = (
         f"{config.retriever}_router_chunk{config.chunk_size}_top{config.top_k}_{config.generator}"
@@ -83,6 +156,12 @@ def run_experiment(config: ExperimentConfig, settings: Settings | None = None) -
         "route_accuracy": round(route_accuracy, 4),
         "retrieval_recall": round(retrieval_recall, 4),
         "expected_doc_hit_rate": round(expected_doc_hit_rate, 4),
+        "multimodal_question_count": multimodal_question_count,
+        "cross_modal_question_count": cross_modal_question_count,
+        "image_retrieval_recall": round(image_retrieval_recall, 4),
+        "image_hit_rate": round(image_hit_rate, 4),
+        "image_citation_hit_rate": round(image_citation_hit_rate, 4),
+        "cross_modal_coverage": round(cross_modal_coverage, 4),
         "avg_latency_ms": round(avg_latency_ms, 2),
         "cost_per_query_usd": 0.0,
         "results": rows,
@@ -108,6 +187,17 @@ def _parse_args() -> ExperimentConfig:
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
     )
+
+
+def _average_metric(
+    rows: list[dict[str, object]],
+    metric_key: str,
+    filter_key: str,
+) -> float:
+    filtered = [row for row in rows if row.get(filter_key)]
+    if not filtered:
+        return 0.0
+    return sum(float(row[metric_key]) for row in filtered) / len(filtered)
 
 
 def main() -> None:
