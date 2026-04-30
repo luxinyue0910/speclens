@@ -11,6 +11,7 @@ from rag.generation.citation_builder import (
     build_extractive_answer,
     build_grounded_answer,
     build_supporting_citations,
+    is_visual_question,
 )
 from rag.generation.prompts import SYSTEM_PROMPT, build_user_prompt
 from rag.types import RetrievedChunk
@@ -131,6 +132,12 @@ class AnswerGenerator:
             results=results,
             limit=3,
         )
+        if is_visual_question(question):
+            return {
+                "answer": answer,
+                "citations": fallback_citations,
+                "confidence": confidence,
+            }
         supporting_by_chunk = {
             citation["chunk_id"]: citation for citation in fallback_citations
         }
@@ -259,6 +266,8 @@ class AnswerGenerator:
         normalized_question = question.lower()
         normalized_answer = answer.lower()
 
+        if is_visual_question(question):
+            return True
         if "endpoint" in normalized_question and "as per the documents" in normalized_answer:
             return True
         if "status code" in normalized_question and len(answer.split()) > 12:
